@@ -17,9 +17,15 @@ apt-get update
 apt-get install -y build-essential cmake git
 
 echo "=== [2/3] Transformer Engine v2.8_rocm -> wheel ==="
+# Pin to the exact commit the published transformer_engine-2.8.0 wheel was built from
+# (originally tagged 2.8.0+a365f2de, repacked to a clean 2.8.0). Pinning the SHA (not the
+# moving v2.8_rocm branch) keeps rebuilds reproducible.
+TE_COMMIT=a365f2de
 rm -rf /root/TransformerEngine
 git clone --recursive --branch v2.8_rocm https://github.com/ROCm/TransformerEngine.git /root/TransformerEngine
 cd /root/TransformerEngine
+git checkout "$TE_COMMIT"
+git submodule update --init --recursive
 NVTE_FUSED_ATTN=0 pip wheel . --no-deps --no-build-isolation -w /out -v
 
 echo "=== [3/3] flash-attn 2.8.3 (rocm) -> wheel ==="
