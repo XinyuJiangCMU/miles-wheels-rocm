@@ -31,5 +31,8 @@ and downloads all assets, then installs each. See its `SGL_ROUTER_USE_WHEELS` sw
 - `build_rocr_vmmfix.py` — rebuild `libhsa-runtime64` with the ROCm 7.2 VMM-pause fix (clone
   ROCR-Runtime @ `rocm-7.2.0` + apply `rocr-vmm-pause-fix-7.2.patch` + cmake). Needs `rocm-llvm-dev`.
   `python build_rocr_vmmfix.py --out /tmp/wheels`. Delete once a released ROCm ships the fix.
+- `build_te_wheel.py` — build the ROCm/gfx950 Transformer Engine wheel from the fp8 fork
+  (`XinyuJiangCMU/TransformerEngine @ miles-dev`) with `NVTE_NO_LOCAL_VERSION=1` for a clean
+  PEP440 version. Run inside a rocm720 base container: `python build_te_wheel.py --out /out`.
 
 Upload the produced artifacts to a new Release tag, then point `WHEELS_TAG_ROCM` at it.
