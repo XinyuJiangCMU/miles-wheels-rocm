@@ -9,10 +9,10 @@ local tag, which GitHub Releases mangle into an invalid filename); the source co
 is tracked in the release / manifest.
 
 This is a CPU cross-compile for gfx950 (``NVTE_ROCM_ARCH=gfx950``) — no GPU needed —
-but it MUST run inside the matching rocm720 base container so the wheel links the same
-torch (2.9.1+rocm7.2.0) / Python (3.10) ABI as the runtime image.
+but it MUST run inside the exact target runtime base so the wheel links the same
+torch / ROCm / Python ABI as the final image.
 
-Usage (inside a rocm720 base container):
+Usage (inside the target runtime base container):
     python build_te_wheel.py --out /out
     python build_te_wheel.py --commit <sha> --out /out          # a different fork commit
     python build_te_wheel.py --repo <url> --branch <name> ...    # override source
@@ -30,7 +30,7 @@ from dataclasses import dataclass, field
 
 TE_REPO_DEFAULT = "https://github.com/JessicaJiang-123/TransformerEngine.git"
 TE_BRANCH_DEFAULT = "miles-te-0814"
-TE_COMMIT_DEFAULT = "58109c88"  # ROCm/TE @ 2026-08-14 + 2 miles patches; TE 2.17.0
+TE_COMMIT_DEFAULT = "58109c88cb277d7f7763d239b7cbadfbe77ff241"  # TE 2.17.0 + 2 miles patches
 
 # gfx950 cross-compile env (same as in-container-build.sh / docker/Dockerfile.rocm).
 BUILD_ENV = {
@@ -45,7 +45,8 @@ BUILD_ENV = {
     "NVTE_NO_LOCAL_VERSION": "1",  # clean PEP440 version (no +<sha> local tag; GitHub mangles '+'->'.')
     "NVTE_FUSED_ATTN": "0",  # build-time scope: skip the fused-attn kernel matrix rebuild
     "CMAKE_PREFIX_PATH": "/opt/rocm:/opt/rocm/hip:/usr/local:/usr",
-    "MAX_JOBS": str(os.cpu_count() or 32),
+    # Honour an explicit cap on shared build hosts; otherwise use all visible CPUs.
+    "MAX_JOBS": os.environ.get("MAX_JOBS", str(os.cpu_count() or 32)),
     "PIP_ROOT_USER_ACTION": "ignore",
 }
 
@@ -86,6 +87,7 @@ def build(cfg: BuildConfig, out_dir: str):
     _run(["git", "clone", "--recursive", "-b", cfg.branch, cfg.repo, src])
     _run(["git", "checkout", cfg.commit], cwd=src)
     _run(["git", "submodule", "update", "--init", "--recursive"], cwd=src)
+    _run(["git", "log", "-1", "--format=source_commit=%H"], cwd=src)
     _run(
         ["pip", "wheel", ".", "--no-deps", "--no-build-isolation", "-w", out_dir, "-v"],
         env=cfg.env,

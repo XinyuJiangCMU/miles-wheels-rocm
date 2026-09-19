@@ -7,7 +7,7 @@ for debugging.
 
 Usage (standalone):
     python build_sglang_gateway.py --out /tmp/wheels
-    python build_sglang_gateway.py --repo https://github.com/radixark/sgl-router-for-miles.git --ref main
+    python build_sglang_gateway.py --repo https://github.com/radixark/sgl-router-for-miles.git --ref <commit>
 """
 
 import os
@@ -20,7 +20,7 @@ import tarfile
 from dataclasses import dataclass
 
 ROUTER_REPO_DEFAULT = "https://github.com/radixark/sgl-router-for-miles.git"
-ROUTER_REF_DEFAULT = "main"
+ROUTER_REF_DEFAULT = "a2ad8d0c84191efea67e1bb2b61d0c634b84c2ce"
 
 
 @dataclass
@@ -98,7 +98,7 @@ def _checkout_git_ref(repo: str, ref: str, dest: str):
     _run(["git", "clone", "--depth=1", repo, dest])
     _run(["git", "fetch", "--depth=1", "origin", ref], cwd=dest)
     _run(["git", "checkout", "-f", "FETCH_HEAD"], cwd=dest)
-    _run(["git", "log", "--oneline", "-1"], cwd=dest)
+    _run(["git", "log", "-1", "--format=source_commit=%H"], cwd=dest)
 
 
 # ── main build ──────────────────────────────────────────────

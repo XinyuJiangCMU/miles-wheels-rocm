@@ -7,32 +7,31 @@ physical HBM while the VA stays reserved (ROCm/ROCm#6021). ``torch_memory_saver.
 then frees nothing and colocated RL OOMs. The one-function upstream fix
 (ROCm/rocm-systems#4363, merge ``e27ce55c``) is only on ``develop`` — not in any released
 7.2.x (checked through 7.2.4) — so this rebuilds ``libhsa-runtime64`` from the
-``rocm-7.2.0`` tag with that fix rebased on top (``rocr-vmm-pause-fix-7.2.patch``).
+matching ROCm tag with that fix rebased on top (``rocr-vmm-pause-fix-7.2.patch``).
 
-The produced ``libhsa-runtime64.so.1.18.70200.vmmfix`` is attached to the
-``rocm720-gfx950-v0.5.14`` Release and installed by ``docker/Dockerfile.rocm``
-(``--build-arg APPLY_ROCR_VMMFIX=1``). It is framework-agnostic — any ROCm 7.2.0 stack
-using tms can drop it in — but it is pinned to that soname (``.1.18.70200``); on a
-different ROCm point release, rebuild here against the matching tag.
+The output name includes the point-release build number, for example
+``libhsa-runtime64.so.1.18.70200.vmmfix`` for ROCm 7.2.0 and
+``libhsa-runtime64.so.1.18.70204.vmmfix`` for ROCm 7.2.4. It is
+framework-agnostic, but must only replace the exact matching runtime.
 
-Prereqs: ROCm 7.2 install, ``rocm-llvm-dev`` (trap-handler Clang cmake config), cmake, git.
+Prereqs: matching ROCm install, ``rocm-llvm-dev`` (trap-handler Clang cmake
+config), ``xxd``, cmake, git, and patch.
 
-Usage (standalone, inside a rocm720 base container):
+Usage (standalone, inside the exact target ROCm base container):
     python build_rocr_vmmfix.py --out /tmp/wheels
-    python build_rocr_vmmfix.py --rocr-ref rocm-7.2.4   # match a different point release
+    python build_rocr_vmmfix.py --rocr-ref rocm-7.2.4 --out /tmp/wheels
 """
 
 import os
+import re
 import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
 
 ROCR_REPO_DEFAULT = "https://github.com/ROCm/ROCR-Runtime.git"
-ROCR_REF_DEFAULT = "rocm-7.2.0"
+ROCR_REF_DEFAULT = "rocm-7.2.4"
 PATCH_DEFAULT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rocr-vmm-pause-fix-7.2.patch")
-SONAME = "libhsa-runtime64.so.1.18.70200"  # ROCm 7.2.0 soname
-OUT_NAME = f"{SONAME}.vmmfix"
 
 
 @dataclass
@@ -41,6 +40,19 @@ class BuildConfig:
     ref: str = ROCR_REF_DEFAULT
     patch: str = PATCH_DEFAULT
     rocm_path: str = "/opt/rocm"
+    rocm_patch_version: str | None = None
+
+
+def _patch_version_from_ref(ref: str) -> str:
+    """Convert a release ref such as rocm-7.2.4 to ROCM_PATCH_VERSION=70204."""
+    match = re.fullmatch(r"rocm-(\d+)\.(\d+)\.(\d+)", ref)
+    if not match:
+        raise RuntimeError(
+            f"cannot derive ROCM_PATCH_VERSION from {ref!r}; "
+            "pass --rocm-patch-version explicitly"
+        )
+    major, minor, patch = map(int, match.groups())
+    return str(major * 10000 + minor * 100 + patch)
 
 
 def _run(cmd, *, env=None, cwd=None):
@@ -73,30 +85,39 @@ def build(cfg: BuildConfig, out_dir: str):
     if os.path.exists(src):
         shutil.rmtree(src)
     os.makedirs(out_dir, exist_ok=True)
+    patch_version = cfg.rocm_patch_version or _patch_version_from_ref(cfg.ref)
+    soname = f"libhsa-runtime64.so.1.18.{patch_version}"
+    out_name = f"{soname}.vmmfix"
 
     try:
         _run(["git", "clone", "--depth", "1", "-b", cfg.ref, cfg.repo, src])
+        _run(["git", "log", "-1", "--format=source_commit=%H"], cwd=src)
         _run(["git", "apply", "--stat", cfg.patch], cwd=src)  # show what it touches
         _run(["patch", "-p1", "-i", cfg.patch], cwd=src)
         _run([
             "cmake", "-S", ".", "-B", "build",
             f"-DCMAKE_INSTALL_PREFIX={cfg.rocm_path}",
             "-DCMAKE_BUILD_TYPE=Release",
-            "-DROCM_PATCH_VERSION=70200",
+            f"-DROCM_PATCH_VERSION={patch_version}",
             f"-DCMAKE_PREFIX_PATH={cfg.rocm_path};{cfg.rocm_path}/llvm",
         ], cwd=src)
-        _run(["cmake", "--build", "build", "--target", "hsa-runtime64", "-j", str(os.cpu_count() or 4)], cwd=src)
+        jobs = os.environ.get("MAX_JOBS", str(os.cpu_count() or 4))
+        _run(["cmake", "--build", "build", "--target", "hsa-runtime64", "-j", jobs], cwd=src)
 
-        built = os.path.join(src, "build", "rocr", "lib", SONAME)
+        built = os.path.join(src, "build", "rocr", "lib", soname)
         if not os.path.isfile(built):
             raise RuntimeError(f"expected build output missing: {built}")
+
+        dynamic = subprocess.run(["readelf", "-d", built], capture_output=True, text=True, check=True)
+        if "[libhsa-runtime64.so.1]" not in dynamic.stdout:
+            raise RuntimeError("built ROCr has an unexpected DT_SONAME")
 
         # sanity: the fix pulls in rocr::os::UncommitMemory — confirm the symbol is referenced.
         nm = subprocess.run(["nm", "-D", built], capture_output=True, text=True)
         if "UncommitMemory" not in nm.stdout:
             print("[warn] UncommitMemory not found in dynamic symbols (stripped build is OK; verify via objdump).")
 
-        dst = os.path.join(out_dir, OUT_NAME)
+        dst = os.path.join(out_dir, out_name)
         shutil.copy2(built, dst)
         print(f"\nBuilt vmmfix ROCr: {dst}")
         print("Install it over $(readlink -f /opt/rocm/lib/libhsa-runtime64.so.1) — overwrite in place,")
@@ -113,10 +134,23 @@ def main():
     p.add_argument("--out", default="/tmp/wheels", help="Output directory for the .so")
     p.add_argument("--repo", default=ROCR_REPO_DEFAULT, help="ROCR-Runtime git repository")
     p.add_argument("--rocr-ref", default=ROCR_REF_DEFAULT, help="ROCR-Runtime tag/branch (match your ROCm point release)")
+    p.add_argument(
+        "--rocm-patch-version",
+        default=None,
+        help="numeric ROCM_PATCH_VERSION; derived from refs such as rocm-7.2.4 by default",
+    )
     p.add_argument("--patch", default=PATCH_DEFAULT, help="path to rocr-vmm-pause-fix patch")
     args = p.parse_args()
 
-    build(BuildConfig(repo=args.repo, ref=args.rocr_ref, patch=args.patch), args.out)
+    build(
+        BuildConfig(
+            repo=args.repo,
+            ref=args.rocr_ref,
+            patch=args.patch,
+            rocm_patch_version=args.rocm_patch_version,
+        ),
+        args.out,
+    )
 
 
 if __name__ == "__main__":
