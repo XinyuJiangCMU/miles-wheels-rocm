@@ -16,7 +16,7 @@ echo "=== [1/3] apt build deps (same as Dockerfile.rocm) ==="
 apt-get update
 apt-get install -y build-essential cmake git rocm-llvm-dev xxd
 
-echo "=== [2/3] Transformer Engine 2.17.0 (Miles fork) -> wheel ==="
+echo "=== [2/3] Transformer Engine 2.18.0.dev0 (Miles fork) -> wheel ==="
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 python "$SCRIPT_DIR/build_te_wheel.py" --out /out
 

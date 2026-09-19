@@ -13,8 +13,10 @@ All artifacts were rebuilt inside the exact target base
 (`sha256:e85389543d3a850ca0f94c541b00581bc4bddf5d0d172deac228a76da167f18a`):
 Ubuntu 24.04, Python 3.12, torch 2.11.0+rocm7.2, ROCm 7.2.4, gfx950.
 
-- `transformer_engine-2.17.0-cp312-cp312-linux_x86_64.whl` is built from
-  `JessicaJiang-123/TransformerEngine@58109c88cb277d7f7763d239b7cbadfbe77ff241`.
+- `transformer_engine-2.18.0.dev0-cp312-cp312-linux_x86_64.whl` is rebuilt for
+  this base from `XinyuJiangCMU/TransformerEngine@2f663a0b87580ae375894bf42b9de87b1edc9b31`,
+  the same fixed TE source used by the ROCm 10 shelf; SHA256
+  `87e308199047c78d1eb6fce74144ae9c6670193f53dd46305e26d1359d2bd73d`.
 - `flash_attn-2.8.3-cp312-cp312-linux_x86_64.whl` is built from the PyPI 2.8.3
   sdist with `GPU_ARCHS=gfx950 BUILD_TARGET=rocm`.
 - `sglang_router-0.3.2-cp38-abi3-manylinux_2_39_x86_64.whl` and
@@ -27,8 +29,8 @@ Ubuntu 24.04, Python 3.12, torch 2.11.0+rocm7.2, ROCm 7.2.4, gfx950.
   and restoring 1,000,341,504 bytes while preserving the virtual address.
 
 The base already contains Apex `1.10.0+rocm7.2.4.git751f5dd5`; Apex is validated
-in place and deliberately not rebuilt or shipped on this shelf. See the release's
-`SHA256SUMS.rocm724-gfx950-v0.5.20` for exact artifact hashes.
+in place and deliberately not rebuilt or shipped on this shelf. The release notes
+record each artifact's exact SHA256.
 
 ### Historical releases
 

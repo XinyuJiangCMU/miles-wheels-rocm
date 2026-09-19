@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Build the ROCm / gfx950 Transformer Engine wheel from the miles fp8 fork.
+"""Build the ROCm / gfx950 Transformer Engine wheel from the Miles TE fork.
 
-The published ``transformer_engine-<ver>.dev0.<sha>-cp310-...whl`` is built from
-``JessicaJiang-123/TransformerEngine`` (the fp8 fork, ``miles-te-0814`` integration
-branch), NOT from upstream ``ROCm/TransformerEngine``. It is built with
+The current wheel is built from ``XinyuJiangCMU/TransformerEngine`` at the fixed
+``miles-dev`` commit shared with the ROCm 10 shelf, NOT from a moving branch.
+It is built with
 ``NVTE_NO_LOCAL_VERSION=1`` so the version is a clean PEP440 string (no ``+<sha>``
 local tag, which GitHub Releases mangle into an invalid filename); the source commit
-is tracked in the release / manifest.
+is tracked in the release notes.
 
 This is a CPU cross-compile for gfx950 (``NVTE_ROCM_ARCH=gfx950``) — no GPU needed —
 but it MUST run inside the exact target runtime base so the wheel links the same
@@ -28,9 +28,9 @@ import shutil
 import subprocess
 from dataclasses import dataclass, field
 
-TE_REPO_DEFAULT = "https://github.com/JessicaJiang-123/TransformerEngine.git"
-TE_BRANCH_DEFAULT = "miles-te-0814"
-TE_COMMIT_DEFAULT = "58109c88cb277d7f7763d239b7cbadfbe77ff241"  # TE 2.17.0 + 2 miles patches
+TE_REPO_DEFAULT = "https://github.com/XinyuJiangCMU/TransformerEngine.git"
+TE_BRANCH_DEFAULT = "miles-dev"
+TE_COMMIT_DEFAULT = "2f663a0b87580ae375894bf42b9de87b1edc9b31"  # TE 2.18.0.dev0 + 2 Miles patches
 
 # gfx950 cross-compile env (same as in-container-build.sh / docker/Dockerfile.rocm).
 BUILD_ENV = {
