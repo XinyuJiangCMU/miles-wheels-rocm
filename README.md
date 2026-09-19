@@ -1,6 +1,6 @@
 # miles-wheels-rocm
 
-Prebuilt ROCm / gfx950 (MI355X) wheels and binaries for the Miles training image.
+Prebuilt ROCm / gfx950 (MI350X / MI355X) wheels and binaries for the Miles training image.
 Build recipes live in this repository; artifacts are attached to GitHub Releases
 rather than committed to git.
 
@@ -32,6 +32,25 @@ The base already contains Apex `1.10.0+rocm7.2.4.git751f5dd5`; Apex is validated
 in place and deliberately not rebuilt or shipped on this shelf. The release notes
 record each artifact's exact SHA256.
 
+### `rocm10-gfx950-v0.5.18`
+
+The ROCm 10 / Python 3.12 shelf used by the Miles `rocm10-mi35x` image carries
+`transformer_engine-2.18.0.dev0-cp312-cp312-linux_x86_64.whl`. It was built in
+`rocm/sgl-dev:miles-rocm10-mi35x-20260912` from
+`XinyuJiangCMU/TransformerEngine@miles-dev`
+(`2f663a0b87580ae375894bf42b9de87b1edc9b31`) with the Miles fp32-accum wgrad and
+CP softmax-LSE dynamic-shape fixes. SHA256:
+`5153c4119f2ac3e123d3c20f982e62a600e37ea56f00acd0aa9fb32e4fc55a54`.
+
+Build this exact wheel inside the ROCm 10 target base with:
+
+```bash
+python build_te_wheel.py --out /out
+```
+
+The wheel does not set any `NVTE_*` runtime backend variable. Backend selection remains
+opt-in per workload.
+
 ### Historical releases
 
 - `rocm720-gfx950-v0.5.16` targets
@@ -40,9 +59,8 @@ record each artifact's exact SHA256.
 - `rocm720-gfx950-v0.5.14` is the superseded v0.5.14 shelf.
 - `rocm700-gfx950-v0.5.14` is the ROCm 7.0 counterpart.
 
-The Miles Dockerfile selects the current shelf with
-`--build-arg WHEELS_TAG_ROCM=rocm724-gfx950-v0.5.20` and verifies every downloaded
-asset before installation.
+The Miles Dockerfile selects the shelf with `WHEELS_TAG_ROCM` and verifies every
+downloaded asset before installation.
 
 ## Build scripts
 
@@ -55,7 +73,7 @@ asset before installation.
   the VMM-pause patch. For 7.2.4 it emits `.1.18.70204.vmmfix`; never substitute the
   older `.70200` artifact.
 
-Example inside the target base:
+Examples inside the matching target base:
 
 ```bash
 python build_te_wheel.py --out /out
@@ -65,5 +83,5 @@ GPU_ARCHS=gfx950 BUILD_TARGET=rocm pip wheel flash-attn==2.8.3 \
   --no-deps --no-build-isolation -w /out -v
 ```
 
-Create a new immutable release for a new base or ABI. Do not overwrite an existing
-release asset and do not point production Dockerfiles at a mutable branch.
+Create a new immutable release for a new base or ABI. Do not point production
+Dockerfiles at a mutable branch.

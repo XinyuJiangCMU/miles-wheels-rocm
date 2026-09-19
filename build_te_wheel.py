@@ -6,7 +6,7 @@ The current wheel is built from ``XinyuJiangCMU/TransformerEngine`` at the fixed
 It is built with
 ``NVTE_NO_LOCAL_VERSION=1`` so the version is a clean PEP440 string (no ``+<sha>``
 local tag, which GitHub Releases mangle into an invalid filename); the source commit
-is tracked in the release notes.
+and wheel checksum are tracked in the release notes.
 
 This is a CPU cross-compile for gfx950 (``NVTE_ROCM_ARCH=gfx950``) — no GPU needed —
 but it MUST run inside the exact target runtime base so the wheel links the same
@@ -17,12 +17,13 @@ Usage (inside the target runtime base container):
     python build_te_wheel.py --commit <sha> --out /out          # a different fork commit
     python build_te_wheel.py --repo <url> --branch <name> ...    # override source
 
-After building, upload the .whl to a NEW Release tag (do not overwrite an existing tag)
-and point ``WHEELS_TAG_ROCM`` at it; the Dockerfile installs it via the
-``transformer_engine-*.whl`` glob, so the exact filename never needs to be hardcoded.
+After building, upload the wheel to the matching release and record the source commit
+and SHA256 in its notes. Runtime backend selection remains opt-in through TE's
+``NVTE_*`` environment variables; it is not baked into this wheel.
 """
 
 import glob
+import hashlib
 import os
 import shutil
 import subprocess
@@ -98,8 +99,10 @@ def build(cfg: BuildConfig, out_dir: str):
     if not wheels:
         raise RuntimeError(f"no transformer_engine wheel produced in {out_dir}")
     for w in wheels:
-        print(f"\nBuilt TE wheel: {w}")
-    print("\nUpload it to a NEW Release tag, then bump WHEELS_TAG_ROCM in docker/build.py.")
+        with open(w, "rb") as f:
+            digest = hashlib.file_digest(f, "sha256").hexdigest()
+        print(f"\nBuilt TE wheel: {w}\nSHA256: {digest}")
+    print("\nRecord the source commit and wheel SHA256 when publishing the release asset.")
 
 
 def main():
@@ -109,7 +112,7 @@ def main():
     p.add_argument("--out", default="/out", help="output directory for the wheel")
     p.add_argument("--repo", default=TE_REPO_DEFAULT, help="TransformerEngine git repository")
     p.add_argument("--branch", default=TE_BRANCH_DEFAULT, help="branch to clone before checkout")
-    p.add_argument("--commit", default=TE_COMMIT_DEFAULT, help="commit to build (embedded in the wheel version)")
+    p.add_argument("--commit", default=TE_COMMIT_DEFAULT, help="commit to build")
     args = p.parse_args()
 
     build(BuildConfig(repo=args.repo, branch=args.branch, commit=args.commit), args.out)

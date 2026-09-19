@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs INSIDE the exact target rocm/sgl-dev base. Builds the Miles TE 2.17 fork
+# Runs INSIDE the exact target rocm/sgl-dev base. Builds the Miles TE 2.18 fork
 # and flash-attn 2.8.3, emitting wheels into /out instead of installing them.
 # CPU cross-compile for gfx950 — no GPU needed.
 set -euxo pipefail
