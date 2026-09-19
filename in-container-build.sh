@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Runs INSIDE rocm/sgl-dev base. Builds ROCm wheels for TE v2.8_rocm + flash-attn 2.8.3
-# the same way docker/Dockerfile.rocm builds them, but emits .whl into /out instead of installing.
+# Runs INSIDE the exact target rocm/sgl-dev base. Builds the Miles TE 2.17 fork
+# and flash-attn 2.8.3, emitting wheels into /out instead of installing them.
 # CPU cross-compile for gfx950 — no GPU needed.
 set -euxo pipefail
 
@@ -14,22 +14,13 @@ mkdir -p /out
 
 echo "=== [1/3] apt build deps (same as Dockerfile.rocm) ==="
 apt-get update
-apt-get install -y build-essential cmake git
+apt-get install -y build-essential cmake git rocm-llvm-dev xxd
 
-echo "=== [2/3] Transformer Engine v2.8_rocm -> wheel ==="
-# Pin to the exact commit the published transformer_engine-2.8.0 wheel was built from
-# (originally tagged 2.8.0+a365f2de, repacked to a clean 2.8.0). Pinning the SHA (not the
-# moving v2.8_rocm branch) keeps rebuilds reproducible.
-TE_COMMIT=a365f2de
-rm -rf /root/TransformerEngine
-git clone --recursive --branch v2.8_rocm https://github.com/ROCm/TransformerEngine.git /root/TransformerEngine
-cd /root/TransformerEngine
-git checkout "$TE_COMMIT"
-git submodule update --init --recursive
-NVTE_FUSED_ATTN=0 pip wheel . --no-deps --no-build-isolation -w /out -v
+echo "=== [2/3] Transformer Engine 2.17.0 (Miles fork) -> wheel ==="
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+python "$SCRIPT_DIR/build_te_wheel.py" --out /out
 
 echo "=== [3/3] flash-attn 2.8.3 (rocm) -> wheel ==="
-cd /root
 GPU_ARCHS=gfx950 BUILD_TARGET=rocm pip wheel flash-attn==2.8.3 --no-deps --no-build-isolation -w /out -v
 
 echo "=== DONE. wheels in /out: ==="

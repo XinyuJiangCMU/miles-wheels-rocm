@@ -1,45 +1,67 @@
 # miles-wheels-rocm
 
-Prebuilt ROCm / gfx950 (MI355X) wheels + binaries for the miles training image
-(`docker/Dockerfile.rocm720`), mirroring the NV `yueming-yuan/miles-wheels` flow: the
-build scripts live here, and the artifacts are attached to **Releases** (not committed).
+Prebuilt ROCm / gfx950 (MI355X) wheels and binaries for the Miles training image.
+Build recipes live in this repository; artifacts are attached to GitHub Releases
+rather than committed to git.
 
-## Releases (artifacts are release assets)
+## Releases
 
-- **rocm720-gfx950-v0.5.16** — built on the `sgl-dev v0.5.16-rocm720-mi35x-20260730` base
-  (torch 2.9.1+rocm7.2.0, Python 3.10). Current release; the Dockerfile points here.
-  - `transformer_engine-2.17.0-...whl` — from `JessicaJiang-123/TransformerEngine @
-    miles-te-0814` (`58109c88`), which is ROCm/TransformerEngine at 2026-08-14 plus two miles
-    patches (fp32-accum wgrad fix, CP softmax-LSE dynamic-shape compile). Built by
-    `build_te_wheel.py`.
-  - `flash_attn-2.8.3-...whl` — flash-attn 2.8.3 (PyPI) via `pip wheel --no-build-isolation`,
-    `GPU_ARCHS=gfx950 BUILD_TARGET=rocm`. Links libamdhip64 / libMIOpen.
-  - `sglang_router-0.3.2-...whl` + `sgl-model-gateway-linux-x86_64.tar.gz` — from
-    `radixark/sgl-router-for-miles @ a2ad8d0` via maturin + cargo (vendored-openssl).
-  - `libhsa-runtime64.so.1.18.70200.vmmfix` — ROCr rebuilt from the `rocm-7.2.0` tag with the
-    ROCm 7.2 VMM-pause fix (ROCm/rocm-systems#4363, merge `e27ce55c`), which is only on `develop`
-    and not in any released 7.2.x. Fixes `torch_memory_saver.pause()` freeing 0 bytes on ROCm 7.2.
-    Framework-agnostic (drop it into any ROCm 7.2.0 stack), but pinned to that soname. Built by
-    `build_rocr_vmmfix.py`.
-- **rocm720-gfx950-v0.5.14** — superseded by v0.5.16. Same asset set, but built on the
-  `v0.5.14-rocm720-mi35x-20260627` base and carrying `transformer_engine-2.14.0.dev0` from
-  `XinyuJiangCMU/TransformerEngine @ miles-dev` (`619aa3f4`). Kept for images still pinned to it.
-- **rocm700-gfx950-v0.5.14** — the ROCm 7.0 counterpart (flash-attn + transformer_engine).
-  ROCm 7.0 has no VMM-pause regression, so no vmmfix asset here.
+### `rocm724-gfx950-v0.5.20` (current)
 
-The Dockerfile selects a release with `--build-arg WHEELS_TAG_ROCM=rocm720-gfx950-v0.5.16`
-and downloads all assets, then installs each. See its `SGL_ROUTER_USE_WHEELS` switch.
+All artifacts were rebuilt inside the exact target base
+`rocm/sgl-dev:v0.5.20-rocm724-mi35x-20260919`
+(`sha256:e85389543d3a850ca0f94c541b00581bc4bddf5d0d172deac228a76da167f18a`):
+Ubuntu 24.04, Python 3.12, torch 2.11.0+rocm7.2, ROCm 7.2.4, gfx950.
+
+- `transformer_engine-2.17.0-cp312-cp312-linux_x86_64.whl` is built from
+  `JessicaJiang-123/TransformerEngine@58109c88cb277d7f7763d239b7cbadfbe77ff241`.
+- `flash_attn-2.8.3-cp312-cp312-linux_x86_64.whl` is built from the PyPI 2.8.3
+  sdist with `GPU_ARCHS=gfx950 BUILD_TARGET=rocm`.
+- `sglang_router-0.3.2-cp38-abi3-manylinux_2_39_x86_64.whl` and
+  `sgl-model-gateway-linux-x86_64.tar.gz` are built from
+  `radixark/sgl-router-for-miles@a2ad8d0c84191efea67e1bb2b61d0c634b84c2ce`.
+- `libhsa-runtime64.so.1.18.70204.vmmfix` is built from
+  `ROCm/ROCR-Runtime@e5498ba92dad7099d2027bd22bd7295ca1caf833` (`rocm-7.2.4`)
+  plus `rocr-vmm-pause-fix-7.2.patch`. A stock/candidate A/B with the Miles-pinned
+  `torch_memory_saver` showed stock freeing zero bytes and the candidate freeing
+  and restoring 1,000,341,504 bytes while preserving the virtual address.
+
+The base already contains Apex `1.10.0+rocm7.2.4.git751f5dd5`; Apex is validated
+in place and deliberately not rebuilt or shipped on this shelf. See the release's
+`SHA256SUMS.rocm724-gfx950-v0.5.20` for exact artifact hashes.
+
+### Historical releases
+
+- `rocm720-gfx950-v0.5.16` targets
+  `sgl-dev:v0.5.16-rocm720-mi35x-20260730` (Python 3.10, torch 2.9.1+rocm7.2.0).
+  It is retained only for reproducibility; new Miles images must not use it.
+- `rocm720-gfx950-v0.5.14` is the superseded v0.5.14 shelf.
+- `rocm700-gfx950-v0.5.14` is the ROCm 7.0 counterpart.
+
+The Miles Dockerfile selects the current shelf with
+`--build-arg WHEELS_TAG_ROCM=rocm724-gfx950-v0.5.20` and verifies every downloaded
+asset before installation.
 
 ## Build scripts
 
-- `build_sglang_gateway.py` — build the sgl-router wheel + gateway binary from source
-  (rustup + maturin + cargo). `python build_sglang_gateway.py --out /tmp/wheels`.
-- `in-container-build.sh` — helper to build the wheels inside a rocm720 base container.
-- `build_rocr_vmmfix.py` — rebuild `libhsa-runtime64` with the ROCm 7.2 VMM-pause fix (clone
-  ROCR-Runtime @ `rocm-7.2.0` + apply `rocr-vmm-pause-fix-7.2.patch` + cmake). Needs `rocm-llvm-dev`.
-  `python build_rocr_vmmfix.py --out /tmp/wheels`. Delete once a released ROCm ships the fix.
-- `build_te_wheel.py` — build the ROCm/gfx950 Transformer Engine wheel from the fp8 fork
-  (`JessicaJiang-123/TransformerEngine @ miles-te-0814`) with `NVTE_NO_LOCAL_VERSION=1` for a clean
-  PEP440 version. Run inside a rocm720 base container: `python build_te_wheel.py --out /out`.
+- `in-container-build.sh` builds Transformer Engine and flash-attn inside the exact
+  target base. It emits wheels to `/out` and does not require a GPU.
+- `build_te_wheel.py` builds the Miles Transformer Engine fork at a fixed full commit.
+- `build_sglang_gateway.py` builds the sgl-router wheel and gateway binary at a fixed
+  full commit using maturin and cargo.
+- `build_rocr_vmmfix.py` rebuilds the matching point-release `libhsa-runtime64` with
+  the VMM-pause patch. For 7.2.4 it emits `.1.18.70204.vmmfix`; never substitute the
+  older `.70200` artifact.
 
-Upload the produced artifacts to a new Release tag, then point `WHEELS_TAG_ROCM` at it.
+Example inside the target base:
+
+```bash
+python build_te_wheel.py --out /out
+python build_sglang_gateway.py --out /out
+python build_rocr_vmmfix.py --rocr-ref rocm-7.2.4 --out /out
+GPU_ARCHS=gfx950 BUILD_TARGET=rocm pip wheel flash-attn==2.8.3 \
+  --no-deps --no-build-isolation -w /out -v
+```
+
+Create a new immutable release for a new base or ABI. Do not overwrite an existing
+release asset and do not point production Dockerfiles at a mutable branch.
