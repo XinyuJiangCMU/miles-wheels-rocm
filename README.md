@@ -72,6 +72,8 @@ downloaded asset before installation.
 - `in-container-build.sh` builds Transformer Engine and flash-attn inside the exact
   target base. It emits wheels to `/out` and does not require a GPU.
 - `build_te_wheel.py` builds the Miles Transformer Engine fork at a fixed full commit.
+- `build_apex_wheel.py` builds ROCm Apex's native ops for an explicit `gfx942` or
+  `gfx950` target. See the matching-GPU requirement below.
 - `build_sglang_gateway.py` builds the sgl-router wheel and gateway binary at a fixed
   full commit using maturin and cargo.
 - `build_rocr_vmmfix.py` rebuilds the matching point-release `libhsa-runtime64` with
@@ -90,3 +92,50 @@ GPU_ARCHS=gfx950 BUILD_TARGET=rocm pip wheel flash-attn==2.8.3 \
 
 Create a new immutable release for a new base or ABI. Do not point production
 Dockerfiles at a mutable branch.
+
+## Build Apex for ROCm 10
+
+The existing ROCm 10 gfx950 Apex wheel uses
+`ROCm/apex@40608ba22ccdb87e9f649600b0dc69d1f718d545`. The script defaults to that
+same source and sets `APEX_BUILD_CPP_OPS=1 APEX_BUILD_CUDA_OPS=1`, which prebuild
+the compatible native ops, including Miles' `fused_weight_gradient_mlp_cuda`.
+
+Run inside the **exact SGLang base used by the target Miles image**, with its
+existing ROCm PyTorch. For the MI300X / MI325X configuration, that base is
+`rocm/sgl-dev:v0.5.20-rocm10-mi30x-20260919`. Record the pulled image digest with
+the build results. Expose matching GPUs (`--device=/dev/kfd --device=/dev/dri`
+and the required video/render group permissions), mount this repository at
+`/workspace/miles-wheels-rocm`, and mount a persistent output directory at `/out`.
+
+This Apex version probes `rocminfo` and can override `PYTORCH_ROCM_ARCH` with the
+detected hardware. Therefore **build gfx942 on MI300X / MI325X, and gfx950 on
+MI350X / MI355X**. The script rejects missing or mismatched devices. It does not
+claim GPU-free cross-compilation support.
+
+Inside that container:
+
+```bash
+apt-get update
+apt-get install -y build-essential git ninja-build
+python -m pip install setuptools wheel packaging cxxfilt==0.3.0 py-cpuinfo==9.0.0
+cd /workspace/miles-wheels-rocm
+set -o pipefail
+python build_apex_wheel.py --gpu-arch gfx942 --out /out/gfx942 --jobs 32 \
+  2>&1 | tee /out/apex-gfx942-build.log
+```
+
+For MI350X / MI355X, use the matching MI35X base, `--gpu-arch gfx950`, and a
+separate output directory. `MAX_JOBS` supplies the default job limit; `--jobs`
+overrides it. Neither pip dependencies nor a different PyTorch are installed by
+the build script itself.
+
+The output contains the wheel and a `.build.json` receipt recording the full
+source commit, Python/PyTorch/HIP versions, target GPU, build flags and SHA256.
+The script checks that the wheel contains the native wgrad extension; a wheel
+containing only Python JIT wrappers is rejected. It does not upload artifacts or
+install the wheel. Successful compilation is not GPU runtime validation: install
+the wheel in a fresh matching container and run the native op before publishing.
+The new gfx942 build path still needs that validation.
+
+This is the Apex recipe only. `build_te_wheel.py` and `in-container-build.sh`
+currently target gfx950; they are not yet a complete MI300 wheel build entry point.
