@@ -8,7 +8,7 @@ rather than committed to git.
 
 ### `rocm724-gfx950-v0.5.20` (current)
 
-All artifacts were rebuilt inside the exact target base
+GPU-dependent artifacts were rebuilt inside the exact target base
 `rocm/sgl-dev:v0.5.20-rocm724-mi35x-20260919`
 (`sha256:e85389543d3a850ca0f94c541b00581bc4bddf5d0d172deac228a76da167f18a`):
 Ubuntu 24.04, Python 3.12, torch 2.11.0+rocm7.2, ROCm 7.2.4, gfx950.
@@ -20,8 +20,9 @@ Ubuntu 24.04, Python 3.12, torch 2.11.0+rocm7.2, ROCm 7.2.4, gfx950.
 - `flash_attn-2.8.3-cp312-cp312-linux_x86_64.whl` is built from the PyPI 2.8.3
   sdist with `GPU_ARCHS=gfx950 BUILD_TARGET=rocm`.
 - `sglang_router-0.3.2-cp38-abi3-manylinux_2_39_x86_64.whl` and
-  `sgl-model-gateway-linux-x86_64.tar.gz` are built from
-  `radixark/sgl-router-for-miles@a2ad8d0c84191efea67e1bb2b61d0c634b84c2ce`.
+  `sgl-model-gateway-linux-x86_64.tar.gz` were rebuilt on 2026-09-28 from
+  `radixark/sgl-router-for-miles@0e7c1ac7842317f39a9276af36f5f3a68ed85be8`,
+  including the `lora_backfill_paths` forwarding fix.
 - `libhsa-runtime64.so.1.18.70204.vmmfix` is built from
   `ROCm/ROCR-Runtime@e5498ba92dad7099d2027bd22bd7295ca1caf833` (`rocm-7.2.4`)
   plus `rocr-vmm-pause-fix-7.2.patch`. A stock/candidate A/B with the Miles-pinned
@@ -50,6 +51,10 @@ python build_te_wheel.py --out /out
 
 The wheel does not set any `NVTE_*` runtime backend variable. Backend selection remains
 opt-in per workload.
+
+The router wheel and gateway were also refreshed on 2026-09-28 from the same router
+commit listed above. This release uses the `manylinux_2_34_x86_64` router wheel.
+`build_sglang_gateway.py` defaults to that published source commit for both releases.
 
 ### Historical releases
 

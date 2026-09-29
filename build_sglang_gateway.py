@@ -20,7 +20,7 @@ import tarfile
 from dataclasses import dataclass
 
 ROUTER_REPO_DEFAULT = "https://github.com/radixark/sgl-router-for-miles.git"
-ROUTER_REF_DEFAULT = "a2ad8d0c84191efea67e1bb2b61d0c634b84c2ce"
+ROUTER_REF_DEFAULT = "0e7c1ac7842317f39a9276af36f5f3a68ed85be8"
 
 
 @dataclass
